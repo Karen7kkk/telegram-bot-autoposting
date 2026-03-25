@@ -1,6 +1,8 @@
 from aiogram import Router
-from aiogram.types import Message
+from aiogram.types import Message, BufferedInputFile
 from bot.scheduler import PostScheduler
+from bot.gigachat import GigaChatClient
+from bot.unsplash import UnsplashClient
 
 router = Router()
 scheduler = None
@@ -8,8 +10,9 @@ scheduler = None
 @router.message()
 async def handle_message(message: Message):
     global scheduler
-    if message.text and message.text.startswith("/start_autopost"):
-        args = message.text.split()
+    text = message.text or ""
+    if text.startswith("/start_autopost"):
+        args = text.split()
         if len(args) < 4:
             await message.answer("Usage: /start_autopost CHANNEL_ID TOPIC INTERVAL_HOURS")
             return
@@ -22,5 +25,23 @@ async def handle_message(message: Message):
             await message.answer(f"✅ Autoposting started!\nChannel: {channel_id}\nTopic: {topic}\nInterval: {interval} hours")
         except Exception as e:
             await message.answer(f"❌ Error: {e}")
+
+    elif text.startswith("/test_photo"):
+        topic = text.replace("/test_photo", "").strip()
+        if not topic:
+            await message.answer("Please provide a topic. Example: /test_photo nature")
+            return
+        await message.answer("🔍 Generating photo and caption...")
+        try:
+            giga = GigaChatClient()
+            unsplash = UnsplashClient()
+            caption = giga.generate_short_sentence(topic)
+            photo_url = unsplash.search_photo(topic)
+            photo_bytes = unsplash.download_photo(photo_url)
+            photo_file = BufferedInputFile(photo_bytes, filename="photo.jpg")
+            await message.answer_photo(photo=photo_file, caption=caption)
+        except Exception as e:
+            await message.answer(f"❌ Error: {e}")
+
     else:
-        await message.answer(f"Got: {message.text}")
+        await message.answer(f"Got: {text}")

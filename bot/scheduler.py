@@ -2,7 +2,9 @@ import asyncio
 import logging
 from datetime import datetime
 from aiogram import Bot
+from aiogram.types import BufferedInputFile
 from bot.gigachat import GigaChatClient
+from bot.unsplash import UnsplashClient
 
 logger = logging.getLogger(__name__)
 
@@ -13,18 +15,23 @@ class PostScheduler:
         self.topic = topic
         self.interval = interval_hours * 3600
         self.giga = GigaChatClient()
+        self.unsplash = UnsplashClient()
         self.running = False
         self.task = None
 
     async def generate_and_post(self):
         try:
-            post = self.giga.generate_post(self.topic)
-            await self.bot.send_message(
+            caption = self.giga.generate_short_sentence(self.topic)
+            photo_url = self.unsplash.search_photo(self.topic)
+            photo_bytes = self.unsplash.download_photo(photo_url)
+            photo_file = BufferedInputFile(photo_bytes, filename="photo.jpg")
+            await self.bot.send_photo(
                 chat_id=self.channel_id,
-                text=f"📝 *Пост на тему: {self.topic}*\n\n{post}",
+                photo=photo_file,
+                caption=f"📸 *{caption}*",
                 parse_mode="Markdown"
             )
-            logger.info(f"Post published at {datetime.now()}")
+            logger.info(f"Photo post published at {datetime.now()}")
         except Exception as e:
             logger.error(f"Failed to post: {e}")
 
