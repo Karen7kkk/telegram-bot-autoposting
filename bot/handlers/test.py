@@ -4,6 +4,7 @@ from bot.scheduler import PostScheduler
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
 from aiogram.types import InputFile
+from bot.gemini import describe_photo
 
 router = Router()
 scheduler = None
