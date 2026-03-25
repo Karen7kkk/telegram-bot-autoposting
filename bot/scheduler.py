@@ -20,10 +20,12 @@ class PostScheduler:
         self.running = False
         self.task = None
 
-    async def generate_and_post(self):
+   async def generate_and_post(self):
         try:
-            photo_url = self.unsplash.search_photo(self.topic)
+            photo_url, description = self.unsplash.search_photo(self.topic)
+        
             if not photo_url:
+                # Нет фото — отправляем только текст
                 caption = self.giga.generate_short_sentence(self.topic)
                 await self.bot.send_message(
                     chat_id=self.channel_id,
@@ -33,6 +35,7 @@ class PostScheduler:
                 logger.info(f"Text post published at {datetime.now()}")
                 return
 
+            # Скачиваем фото
             photo_bytes = self.unsplash.download_photo(photo_url)
             if not photo_bytes:
                 caption = self.giga.generate_short_sentence(self.topic)
@@ -43,8 +46,10 @@ class PostScheduler:
                 )
                 return
 
-            caption = describe_photo(photo_bytes)
-            if not caption:
+            # Используем описание от Unsplash, если есть
+            if description:
+                caption = description
+            else:
                 caption = self.giga.generate_short_sentence(self.topic)
 
             await self.bot.send_photo(
