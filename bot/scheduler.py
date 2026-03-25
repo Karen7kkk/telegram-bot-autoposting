@@ -5,6 +5,7 @@ from aiogram import Bot
 from aiogram.types import InputFile
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
+from bot.gemini import describe_photo   # добавляем импорт
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +22,25 @@ class PostScheduler:
 
     async def generate_and_post(self):
         try:
-            # 1. Находим фото
             photo_url = self.unsplash.search_photo(self.topic)
+            if not photo_url:
+                caption = self.giga.generate_short_sentence(self.topic)
+                await self.bot.send_message(
+                    chat_id=self.channel_id,
+                    text=f"📝 *{caption}*",
+                    parse_mode="Markdown"
+                )
+                logger.info(f"Text post published at {datetime.now()}")
+                return
+
             photo_bytes = self.unsplash.download_photo(photo_url)
 
-            # 2. Пытаемся получить описание от Gemini
-            from bot.gemini import describe_photo
+            # Используем Gemini для описания фото
             caption = describe_photo(photo_bytes)
-
-            # 3. Если Gemini не сработал, падаем на короткое предложение по теме
             if not caption:
+                # fallback
                 caption = self.giga.generate_short_sentence(self.topic)
 
-            # 4. Отправляем в канал
             await self.bot.send_photo(
                 chat_id=self.channel_id,
                 photo=InputFile(photo_bytes),
