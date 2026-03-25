@@ -31,22 +31,27 @@ async def handle_message(message: Message):
     elif text.startswith("/test_photo"):
         topic = text.replace("/test_photo", "").strip()
         if not topic:
-            await message.answer("Please provide a topic. Example: /test_photo nature")
+            await message.answer("Укажи тему: /test_photo природа")
             return
-        await message.answer("🔍 Generating photo and caption...")
+        await message.answer("🔍 Генерирую фото и подпись...")
         try:
             unsplash = UnsplashClient()
+            giga = GigaChatClient()
+
             photo_url = unsplash.search_photo(topic)
             if not photo_url:
-                giga = GigaChatClient()
                 caption = giga.generate_short_sentence(topic)
                 await message.answer(f"📝 *{caption}*", parse_mode="Markdown")
                 return
 
             photo_bytes = unsplash.download_photo(photo_url)
+            if not photo_bytes:
+                caption = giga.generate_short_sentence(topic)
+                await message.answer(f"📝 *{caption}*", parse_mode="Markdown")
+                return
+
             caption = describe_photo(photo_bytes)
             if not caption:
-                giga = GigaChatClient()
                 caption = giga.generate_short_sentence(topic)
 
             await message.answer_photo(
@@ -54,6 +59,6 @@ async def handle_message(message: Message):
                 caption=caption
             )
         except Exception as e:
-            await message.answer(f"❌ Error: {e}")
+            await message.answer(f"❌ Ошибка: {e}")
     else:
-        await message.answer(f"Got: {text}")
+        await message.answer(f"Получено: {text}")
