@@ -5,6 +5,7 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
+from aiogram.types import InputFile
 
 logger = logging.getLogger(__name__)
 
@@ -20,20 +21,29 @@ class PostScheduler:
         self.task = None
 
     async def generate_and_post(self):
-        try:
+    try:
+        # 1. Находим фото
+        photo_url = self.unsplash.search_photo(self.topic)
+        photo_bytes = self.unsplash.download_photo(photo_url)
+
+        # 2. Пытаемся получить описание от Gemini
+        from bot.gemini import describe_photo
+        caption = describe_photo(photo_bytes)
+
+        # 3. Если Gemini не сработал, падаем на короткое предложение по теме
+        if not caption:
             caption = self.giga.generate_short_sentence(self.topic)
-            photo_url = self.unsplash.search_photo(self.topic)
-            photo_bytes = self.unsplash.download_photo(photo_url)
-            photo_file = BufferedInputFile(photo_bytes, filename="photo.jpg")
-            await self.bot.send_photo(
-                chat_id=self.channel_id,
-                photo=photo_file,
-                caption=f"📸 *{caption}*",
-                parse_mode="Markdown"
-            )
-            logger.info(f"Photo post published at {datetime.now()}")
-        except Exception as e:
-            logger.error(f"Failed to post: {e}")
+
+        # 4. Отправляем в канал
+        await self.bot.send_photo(
+            chat_id=self.channel_id,
+            photo=InputFile(photo_bytes),
+            caption=f"📸 *{caption}*",
+            parse_mode="Markdown"
+        )
+        logger.info(f"Photo post published at {datetime.now()}")
+    except Exception as e:
+        logger.error(f"Failed to post: {e}")
 
     async def run(self):
         self.running = True
