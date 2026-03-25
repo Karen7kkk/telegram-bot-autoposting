@@ -3,23 +3,6 @@ import time
 from bot.config import GIGACHAT_API_KEY
 
 class GigaChatClient:
-    def generate_short_sentence(self, topic):
-        """Генерирует одно короткое предложение (до 10 слов) на тему"""
-        self._ensure_token()
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Content-Type": "application/json"
-        }
-        prompt = f"Напиши одно короткое предложение (до 10 слов) на тему: {topic}. Без эмодзи. Только предложение."
-        data = {
-            "model": "GigaChat",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.7,
-            "max_tokens": 50
-        }
-        response = requests.post(self.api_url, headers=headers, json=data, verify=False)
-        result = response.json()
-        return result["choices"][0]["message"]["content"].strip()
     def __init__(self):
         self.api_key = GIGACHAT_API_KEY
         self.auth_url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
@@ -65,7 +48,6 @@ class GigaChatClient:
         return result["choices"][0]["message"]["content"]
 
     def generate_short_sentence(self, topic):
-        """Генерирует одно короткое предложение (до 10 слов) на тему"""
         self._ensure_token()
         headers = {
             "Authorization": f"Bearer {self.access_token}",

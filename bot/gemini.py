@@ -14,7 +14,6 @@ def describe_photo(photo_bytes: bytes) -> str:
         prompt = "Напиши одно короткое предложение (до 10 слов), описывающее это изображение."
         response = model.generate_content([prompt, photo_bytes])
         text = response.text.strip()
-        # Ограничиваем длину
         if len(text.split()) > 10:
             text = " ".join(text.split()[:10])
         return text

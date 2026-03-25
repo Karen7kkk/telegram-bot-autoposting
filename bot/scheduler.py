@@ -22,30 +22,27 @@ class PostScheduler:
 
     async def generate_and_post(self):
         try:
-        # Поиск фото
             photo_url = self.unsplash.search_photo(self.topic)
             if not photo_url:
                 caption = self.giga.generate_short_sentence(self.topic)
                 await self.bot.send_message(
                     chat_id=self.channel_id,
-                    text=f"📝 *{caption}*",
+                    text=f"✨ {caption}",
                     parse_mode="Markdown"
                 )
                 logger.info(f"Text post published at {datetime.now()}")
                 return
 
-            # Скачивание фото
             photo_bytes = self.unsplash.download_photo(photo_url)
             if not photo_bytes:
                 caption = self.giga.generate_short_sentence(self.topic)
                 await self.bot.send_message(
                     chat_id=self.channel_id,
-                    text=f"📝 *{caption}*",
+                    text=f"✨ {caption}",
                     parse_mode="Markdown"
                 )
                 return
 
-            # Описание фото через Gemini (или fallback)
             caption = describe_photo(photo_bytes)
             if not caption:
                 caption = self.giga.generate_short_sentence(self.topic)
@@ -53,7 +50,7 @@ class PostScheduler:
             await self.bot.send_photo(
                 chat_id=self.channel_id,
                 photo=BufferedInputFile(photo_bytes, filename="photo.jpg"),
-                caption=f"📸 *{caption}*",
+                caption=f"📸 {caption}",
                 parse_mode="Markdown"
             )
             logger.info(f"Photo post published at {datetime.now()}")

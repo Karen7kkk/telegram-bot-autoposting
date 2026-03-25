@@ -3,7 +3,6 @@ from aiogram.types import Message, BufferedInputFile
 from bot.scheduler import PostScheduler
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
-from aiogram.types import InputFile
 from bot.gemini import describe_photo
 
 router = Router()
@@ -41,13 +40,13 @@ async def handle_message(message: Message):
             photo_url = unsplash.search_photo(topic)
             if not photo_url:
                 caption = giga.generate_short_sentence(topic)
-                await message.answer(f"📝 *{caption}*", parse_mode="Markdown")
+                await message.answer(f"✨ {caption}", parse_mode="Markdown")
                 return
 
             photo_bytes = unsplash.download_photo(photo_url)
             if not photo_bytes:
                 caption = giga.generate_short_sentence(topic)
-                await message.answer(f"📝 *{caption}*", parse_mode="Markdown")
+                await message.answer(f"✨ {caption}", parse_mode="Markdown")
                 return
 
             caption = describe_photo(photo_bytes)
@@ -60,5 +59,6 @@ async def handle_message(message: Message):
             )
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
+
     else:
         await message.answer(f"Получено: {text}")
