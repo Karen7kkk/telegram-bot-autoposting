@@ -2,10 +2,10 @@ import asyncio
 import logging
 from datetime import datetime
 from aiogram import Bot
-from aiogram.types import InputFile
+from aiogram.types import BufferedInputFile
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
-from bot.gemini import describe_photo   # добавляем импорт
+from bot.gemini import describe_photo
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +34,13 @@ class PostScheduler:
                 return
 
             photo_bytes = self.unsplash.download_photo(photo_url)
-
-            # Используем Gemini для описания фото
             caption = describe_photo(photo_bytes)
             if not caption:
-                # fallback
                 caption = self.giga.generate_short_sentence(self.topic)
 
             await self.bot.send_photo(
                 chat_id=self.channel_id,
-                photo=InputFile(photo_bytes),
+                photo=BufferedInputFile(photo_bytes, filename="photo.jpg"),
                 caption=f"📸 *{caption}*",
                 parse_mode="Markdown"
             )

@@ -34,12 +34,10 @@ async def handle_message(message: Message):
             return
         await message.answer("🔍 Generating photo and caption...")
         try:
-            giga = GigaChatClient()
             unsplash = UnsplashClient()
-            from bot.gemini import describe_photo
-
             photo_url = unsplash.search_photo(topic)
             if not photo_url:
+                giga = GigaChatClient()
                 caption = giga.generate_short_sentence(topic)
                 await message.answer(f"📝 *{caption}*", parse_mode="Markdown")
                 return
@@ -47,9 +45,13 @@ async def handle_message(message: Message):
             photo_bytes = unsplash.download_photo(photo_url)
             caption = describe_photo(photo_bytes)
             if not caption:
+                giga = GigaChatClient()
                 caption = giga.generate_short_sentence(topic)
 
-            await message.answer_photo(photo=InputFile(photo_bytes), caption=caption)
+            await message.answer_photo(
+                photo=BufferedInputFile(photo_bytes, filename="photo.jpg"),
+                caption=caption
+            )
         except Exception as e:
             await message.answer(f"❌ Error: {e}")
     else:
