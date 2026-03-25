@@ -5,7 +5,6 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
-from bot.gemini import describe_photo
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +19,11 @@ class PostScheduler:
         self.running = False
         self.task = None
 
-   async def generate_and_post(self):
+    async def generate_and_post(self):
         try:
             photo_url, description = self.unsplash.search_photo(self.topic)
-        
+
             if not photo_url:
-                # Нет фото — отправляем только текст
                 caption = self.giga.generate_short_sentence(self.topic)
                 await self.bot.send_message(
                     chat_id=self.channel_id,
@@ -35,7 +33,6 @@ class PostScheduler:
                 logger.info(f"Text post published at {datetime.now()}")
                 return
 
-            # Скачиваем фото
             photo_bytes = self.unsplash.download_photo(photo_url)
             if not photo_bytes:
                 caption = self.giga.generate_short_sentence(self.topic)
@@ -46,7 +43,6 @@ class PostScheduler:
                 )
                 return
 
-            # Используем описание от Unsplash, если есть
             if description:
                 caption = description
             else:

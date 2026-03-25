@@ -8,7 +8,6 @@ class UnsplashClient:
         self.base_url = "https://api.unsplash.com"
 
     def search_photo(self, query, orientation="landscape", per_page=5):
-        """Возвращает (url, description) или (None, None)"""
         if not self.access_key:
             return None, None
         url = f"{self.base_url}/search/photos"
@@ -26,9 +25,7 @@ class UnsplashClient:
                 if data["results"]:
                     idx = random.randint(0, len(data["results"]) - 1)
                     photo = data["results"][idx]
-                    # Берём alt_description или description
                     description = photo.get("alt_description") or photo.get("description") or ""
-                    # Ограничиваем длину
                     if len(description.split()) > 15:
                         description = " ".join(description.split()[:15])
                     return photo["urls"]["regular"], description

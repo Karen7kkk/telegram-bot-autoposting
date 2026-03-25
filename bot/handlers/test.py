@@ -3,7 +3,6 @@ from aiogram.types import Message, BufferedInputFile
 from bot.scheduler import PostScheduler
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
-from bot.gemini import describe_photo
 
 router = Router()
 scheduler = None
@@ -32,12 +31,13 @@ async def handle_message(message: Message):
         if not topic:
             await message.answer("Укажи тему: /test_photo природа")
             return
-        await message.answer("🔍 Генерирую фото и подпись...")
+        await message.answer("🔍 Ищу фото...")
         try:
             unsplash = UnsplashClient()
             giga = GigaChatClient()
 
-            photo_url = unsplash.search_photo(topic)
+            photo_url, description = unsplash.search_photo(topic)
+
             if not photo_url:
                 caption = giga.generate_short_sentence(topic)
                 await message.answer(f"✨ {caption}", parse_mode="Markdown")
@@ -49,8 +49,9 @@ async def handle_message(message: Message):
                 await message.answer(f"✨ {caption}", parse_mode="Markdown")
                 return
 
-            caption = describe_photo(photo_bytes)
-            if not caption:
+            if description:
+                caption = description
+            else:
                 caption = giga.generate_short_sentence(topic)
 
             await message.answer_photo(
