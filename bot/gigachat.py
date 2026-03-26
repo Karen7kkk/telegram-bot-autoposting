@@ -68,7 +68,7 @@ class GigaChatClient:
         result = response.json()
         return result["choices"][0]["message"]["content"].strip()
 
-    def generate_image(self, prompt):
+    def generate_image(self, prompt, max_retries=2):
         """
         Генерирует изображение через GigaChat по текстовому запросу
         Возвращает bytes изображения или None
@@ -87,24 +87,57 @@ class GigaChatClient:
             "function_call": "auto"
         }
 
-        try:
-            response = requests.post(self.api_url, headers=headers, json=data, verify=False, timeout=60)
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempt {attempt + 1}: Generating image for prompt: {prompt[:50]}...")
+                response = requests.post(
+                    self.api_url,
+                    headers=headers,
+                    json=data,
+                    verify=False,
+                    timeout=120  # Увеличиваем до 120 секунд
+                )
 
-            if response.status_code == 200:
-                result = response.json()
-                # Пробуем найти file_id
-                file_id = self._extract_file_id(result)
-                if file_id:
-                    return self._download_image(file_id)
+                if response.status_code == 200:
+                    result = response.json()
+                    file_id = self._extract_file_id(result)
+                    if file_id:
+                        logger.info(f"Got file_id: {file_id}")
+                        return self._download_image(file_id)
+                    else:
+                        logger.error(f"Could not extract file_id from response on attempt {attempt + 1}")
                 else:
-                    logger.error(f"Could not extract file_id from response")
-                    return None
-            else:
-                logger.error(f"Image generation error: {response.status_code}, {response.text}")
-                return None
+                    logger.error(f"Image generation error: {response.status_code}, {response.text[:200]}")
 
+            except requests.exceptions.Timeout:
+                logger.error(f"Timeout on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    logger.info("Retrying...")
+                    time.sleep(5)
+            except Exception as e:
+                logger.error(f"Image generation exception: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+
+        return None
+
+    def _download_image(self, file_id):
+        """Скачивает изображение по file_id"""
+        self._ensure_token()
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+        }
+        url = f"{self.files_url}/{file_id}/content"
+
+        try:
+            response = requests.get(url, headers=headers, verify=False, timeout=60)
+            if response.status_code == 200:
+                return response.content
+            else:
+                logger.error(f"Download error: {response.status_code}")
+                return None
         except Exception as e:
-            logger.error(f"Image generation exception: {e}")
+            logger.error(f"Download exception: {e}")
             return None
 
     def _extract_file_id(self, response):
