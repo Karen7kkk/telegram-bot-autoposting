@@ -3,6 +3,7 @@ from aiogram.types import Message, BufferedInputFile
 from bot.scheduler import PostScheduler
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
+from bot.pollinations import PollinationsClient
 
 router = Router()
 scheduler = None
@@ -11,20 +12,46 @@ scheduler = None
 async def handle_message(message: Message):
     global scheduler
     text = message.text or ""
+
     if text.startswith("/start_autopost"):
         args = text.split()
         if len(args) < 4:
-            await message.answer("Usage: /start_autopost CHANNEL_ID TOPIC INTERVAL_HOURS")
+            await message.answer("Использование: /start_autopost ID_КАНАЛА ТЕМА ИНТЕРВАЛ_ЧАСОВ\nПример: /start_autopost -1001234567890 криптовалюта 3")
             return
         try:
             channel_id = int(args[1])
             topic = args[2]
             interval = int(args[3])
-            scheduler = PostScheduler(message.bot, channel_id, topic, interval)
+            scheduler = PostScheduler(message.bot, channel_id, topic, interval, use_pollinations=True)
             scheduler.start()
-            await message.answer(f"✅ Autoposting started!\nChannel: {channel_id}\nTopic: {topic}\nInterval: {interval} hours")
+            await message.answer(f"✅ Автопостинг запущен!\nКанал: {channel_id}\nТема: {topic}\nИнтервал: {interval} часов\nГенерация: Pollinations.ai")
         except Exception as e:
-            await message.answer(f"❌ Error: {e}")
+            await message.answer(f"❌ Ошибка: {e}")
+
+    elif text.startswith("/test_pollinations"):
+        topic = text.replace("/test_pollinations", "").strip()
+        if not topic:
+            await message.answer("Укажи тему: /test_pollinations футбольный матч")
+            return
+        await message.answer("🎨 Генерирую изображение через Pollinations.ai... (10-20 секунд)")
+        try:
+            pollinations = PollinationsClient()
+            giga = GigaChatClient()
+
+            photo_bytes = pollinations.generate_image_russian(topic)
+
+            if not photo_bytes:
+                await message.answer("❌ Не удалось сгенерировать изображение. Попробуй другую тему.")
+                return
+
+            caption = giga.generate_short_sentence(topic)
+
+            await message.answer_photo(
+                photo=BufferedInputFile(photo_bytes, filename="generated.jpg"),
+                caption=f"🎨 {caption}"
+            )
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}")
 
     elif text.startswith("/test_photo"):
         topic = text.replace("/test_photo", "").strip()
@@ -49,10 +76,7 @@ async def handle_message(message: Message):
                 await message.answer(f"✨ {caption}", parse_mode="Markdown")
                 return
 
-            if description:
-                caption = description
-            else:
-                caption = giga.generate_short_sentence(topic)
+            caption = description if description else giga.generate_short_sentence(topic)
 
             await message.answer_photo(
                 photo=BufferedInputFile(photo_bytes, filename="photo.jpg"),
