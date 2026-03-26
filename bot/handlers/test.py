@@ -1,3 +1,4 @@
+import asyncio
 from aiogram import Router
 from aiogram.types import Message, BufferedInputFile
 from bot.scheduler import PostScheduler
@@ -36,19 +37,18 @@ async def handle_message(message: Message):
             await message.answer("Укажи тему: /test_pollinations футбольный матч")
             return
 
-        await message.answer("🎨 Генерирую изображение через Pollinations.ai... (30-60 секунд)")
+        await message.answer("🎨 Генерирую уникальное изображение... (30-60 секунд)")
 
         try:
             pollinations = PollinationsClient()
             giga = GigaChatClient()
 
-            status_msg = await message.answer("⏳ Пытаюсь сгенерировать изображение...")
+            status_msg = await message.answer("⏳ Генерация...")
 
-            # Пробуем русский промпт
-            photo_bytes = pollinations.generate_image_russian(topic)
+            photo_bytes = pollinations.generate_image_variations(topic)
 
             if not photo_bytes:
-                await status_msg.edit_text("🔄 Пробую английский вариант...")
+                await status_msg.edit_text("🔄 Пробую другой вариант...")
                 photo_bytes = pollinations.generate_image_with_fallback(topic)
 
             if not photo_bytes:
@@ -64,6 +64,39 @@ async def handle_message(message: Message):
                 await status_msg.delete()
             else:
                 await status_msg.edit_text("❌ Не удалось сгенерировать изображение. Попробуй другую тему или используй /test_photo")
+
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}")
+
+    # Команда /test_variations (генерирует 3 разных варианта)
+    elif text.startswith("/test_variations"):
+        topic = text.replace("/test_variations", "").strip()
+        if not topic:
+            await message.answer("Укажи тему: /test_variations природа")
+            return
+
+        await message.answer("🎨 Генерирую 3 разных варианта изображений...")
+
+        try:
+            pollinations = PollinationsClient()
+            giga = GigaChatClient()
+
+            for i in range(3):
+                await message.answer(f"⏳ Генерирую вариант {i+1}/3...")
+                photo_bytes = pollinations.generate_image_variations(topic)
+
+                if photo_bytes:
+                    caption = giga.generate_short_sentence(topic)
+                    await message.answer_photo(
+                        photo=BufferedInputFile(photo_bytes, filename=f"generated_{i}.jpg"),
+                        caption=f"🎨 Вариант {i+1}: {caption}"
+                    )
+                else:
+                    await message.answer(f"❌ Вариант {i+1} не удалось сгенерировать")
+
+                await asyncio.sleep(2)  # Пауза между запросами, чтобы не перегружать API
+
+            await message.answer("✅ Генерация 3 вариантов завершена!")
 
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
