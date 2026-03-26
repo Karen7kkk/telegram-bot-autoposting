@@ -4,7 +4,14 @@ from aiogram.types import Message, BufferedInputFile
 from bot.scheduler import PostScheduler
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
-from bot.pollinations import PollinationsClient
+
+# Pollinations опционально
+try:
+    from bot.pollinations import PollinationsClient
+    POLLINATIONS_AVAILABLE = True
+except ImportError:
+    POLLINATIONS_AVAILABLE = False
+    PollinationsClient = None
 
 router = Router()
 scheduler = None
@@ -59,11 +66,9 @@ async def handle_message(message: Message):
 
             status_msg = await message.answer("⏳ Генерация изображения...")
 
-            # Генерируем изображение
             photo_bytes = giga.generate_image_simple(topic)
 
             if photo_bytes:
-                # Генерируем подпись
                 caption = giga.generate_short_sentence(topic)
                 await message.answer_photo(
                     photo=BufferedInputFile(photo_bytes, filename="generated.jpg"),
@@ -80,7 +85,7 @@ async def handle_message(message: Message):
             await message.answer(f"❌ Ошибка: {e}")
 
     # ============ КОМАНДА /test_pollinations ============
-    elif text.startswith("/test_pollinations"):
+    elif text.startswith("/test_pollinations") and POLLINATIONS_AVAILABLE:
         topic = text.replace("/test_pollinations", "").strip()
         if not topic:
             await message.answer("Укажи тему: /test_pollinations футбольный матч")
@@ -121,7 +126,7 @@ async def handle_message(message: Message):
             await message.answer(f"❌ Ошибка: {e}")
 
     # ============ КОМАНДА /test_variations ============
-    elif text.startswith("/test_variations"):
+    elif text.startswith("/test_variations") and POLLINATIONS_AVAILABLE:
         topic = text.replace("/test_variations", "").strip()
         if not topic:
             await message.answer("Укажи тему: /test_variations природа")
@@ -146,7 +151,7 @@ async def handle_message(message: Message):
                 else:
                     await message.answer(f"❌ Вариант {i+1} не удалось сгенерировать")
 
-                await asyncio.sleep(2)  # Пауза между запросами
+                await asyncio.sleep(2)
 
             await message.answer("✅ Генерация 3 вариантов завершена!")
 
@@ -179,7 +184,6 @@ async def handle_message(message: Message):
                 await message.answer(f"✨ {caption}", parse_mode="Markdown")
                 return
 
-            # Используем описание от Unsplash (уже переведённое на русский)
             caption = description if description else giga.generate_short_sentence(topic)
 
             await message.answer_photo(
@@ -197,7 +201,7 @@ async def handle_message(message: Message):
 
 🎨 *Генерация изображений:*
 • `/test_gigachat_image тема` — генерация через GigaChat
-• `/test_pollinations тема` — генерация через Pollinations
+• `/test_pollinations тема` — генерация через Pollinations (если включён)
 • `/test_variations тема` — 3 варианта через Pollinations
 • `/test_photo тема` — поиск готового фото в Unsplash
 

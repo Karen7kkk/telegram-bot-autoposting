@@ -1,7 +1,9 @@
 import requests
 import time
-import base64
+import logging
 from bot.config import GIGACHAT_API_KEY
+
+logger = logging.getLogger(__name__)
 
 class GigaChatClient:
     def __init__(self):
@@ -77,7 +79,6 @@ class GigaChatClient:
             "Content-Type": "application/json"
         }
 
-        # Формируем запрос на генерацию изображения
         data = {
             "model": "GigaChat",
             "messages": [
@@ -91,24 +92,13 @@ class GigaChatClient:
 
             if response.status_code == 200:
                 result = response.json()
-                # Ищем file_id в ответе
-                if "choices" in result and result["choices"]:
-                    content = result["choices"][0]["message"]["content"]
-                    # Извлекаем file_id из ответа
-                    # Формат ответа может быть разным, ищем "file_id"
-                    if "file_id" in content:
-                        file_id = content.split("file_id")[1].split('"')[2] if '"' in content else content.split("file_id")[1].split(":")[1].strip()
-                    elif "fileId" in content:
-                        file_id = content.split("fileId")[1].split('"')[2]
-                    else:
-                        # Пробуем альтернативный формат
-                        file_id = self._extract_file_id(result)
-                        if not file_id:
-                            logger.error(f"Could not extract file_id from response: {result}")
-                            return None
-
-                    # Скачиваем изображение по file_id
+                # Пробуем найти file_id
+                file_id = self._extract_file_id(result)
+                if file_id:
                     return self._download_image(file_id)
+                else:
+                    logger.error(f"Could not extract file_id from response")
+                    return None
             else:
                 logger.error(f"Image generation error: {response.status_code}, {response.text}")
                 return None
@@ -120,15 +110,23 @@ class GigaChatClient:
     def _extract_file_id(self, response):
         """Извлекает file_id из ответа GigaChat"""
         try:
-            # Пробуем разные варианты
+            if "choices" in response and response["choices"]:
+                content = response["choices"][0]["message"]["content"]
+                # Ищем file_id в тексте
+                if "file_id" in content:
+                    import json
+                    import re
+                    match = re.search(r'"file_id":\s*"([^"]+)"', content)
+                    if match:
+                        return match.group(1)
             if "attachments" in response:
                 for att in response["attachments"]:
                     if "file_id" in att:
                         return att["file_id"]
             if "file_id" in response:
                 return response["file_id"]
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Extract file_id error: {e}")
         return None
 
     def _download_image(self, file_id):
@@ -151,7 +149,5 @@ class GigaChatClient:
             return None
 
     def generate_image_simple(self, prompt):
-        """
-        Упрощённая версия генерации изображения
-        """
+        """Упрощённая версия генерации изображения"""
         return self.generate_image(prompt)
