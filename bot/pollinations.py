@@ -1,6 +1,7 @@
 import requests
 import logging
-import json
+import random
+import time
 from bot.config import POLLINATIONS_API_KEY, POLLINATIONS_ENABLED
 
 logger = logging.getLogger(__name__)
@@ -9,83 +10,87 @@ class PollinationsClient:
     def __init__(self):
         self.api_key = POLLINATIONS_API_KEY
         self.enabled = POLLINATIONS_ENABLED and bool(self.api_key)
-        self.base_url = "https://gen.pollinations.ai"
 
     def generate_image(self, prompt):
         """
-        Генерирует изображение по текстовому запросу через Pollinations.ai API
-        Возвращает bytes изображения или None
+        Генерирует изображение по текстовому запросу
+        Добавляет случайные параметры для разнообразия
         """
         if not self.enabled:
-            logger.warning("Pollinations is disabled or no API key")
             return None
 
         try:
-            # Формируем запрос к API
-            url = f"{self.base_url}/image/{prompt.replace(' ', '_')}"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+            # Случайный seed для разнообразия
+            seed = random.randint(1, 999999)
+            # Случайный размер
+            width = random.choice([1024, 1024, 1024, 768, 1200])
+            height = random.choice([1024, 1024, 1024, 768, 1200])
+
+            # Формируем URL с параметрами
+            encoded_prompt = prompt.replace(" ", "_").replace("?", "").replace("!", "")
+            url = f"https://pollinations.ai/p/{encoded_prompt}"
+
+            params = {
+                "width": width,
+                "height": height,
+                "seed": seed,
+                "model": "flux",
+                "nologo": "true"
             }
 
-            logger.info(f"Generating image for prompt: {prompt[:50]}...")
+            logger.info(f"Generating image with seed={seed}, size={width}x{height}")
 
-            response = requests.get(
-                url,
-                headers=headers,
-                timeout=45,
-                params={
-                    "width": 1024,
-                    "height": 1024,
-                    "model": "flux"
-                }
-            )
+            response = requests.get(url, params=params, timeout=60)
 
-            if response.status_code == 200:
+            if response.status_code == 200 and response.content:
                 content = response.content
                 if len(content) > 1000 and content[:2] == b'\xff\xd8':
                     logger.info(f"Image generated, size: {len(content)} bytes")
                     return content
-                else:
-                    logger.warning(f"Response not an image, status: {response.status_code}, size: {len(content)}")
-                    return None
-            else:
-                logger.error(f"API error: {response.status_code}, {response.text[:200]}")
-                return None
-
-        except requests.exceptions.Timeout:
-            logger.error("Pollinations request timeout")
             return None
+
         except Exception as e:
             logger.error(f"Pollinations error: {e}")
             return None
 
-    def generate_image_with_fallback(self, topic):
-        """Генерирует изображение с улучшенным промптом"""
+    def generate_image_variations(self, topic):
+        """
+        Генерирует изображение с вариациями промпта
+        """
+        # Список разных промптов для разнообразия
         prompts = [
-            f"high quality photorealistic {topic}",
-            f"beautiful realistic {topic}",
-            f"{topic} photography"
+            f"фотореалистичное качественное изображение {topic}, детали, красивое освещение",
+            f"красивое реалистичное фото {topic}, профессиональная фотография",
+            f"{topic}, высокое качество, детали",
+            f"удивительное фото {topic}, художественное",
+            f"{topic}, стильная композиция, четкое изображение",
+            f"профессиональное фото {topic}, хорошее освещение",
+            f"{topic} в высоком разрешении, детали"
         ]
 
-        for prompt in prompts:
-            logger.info(f"Trying prompt: {prompt}")
-            result = self.generate_image(prompt)
-            if result:
-                return result
-        return None
+        # Добавляем случайные слова для разнообразия
+        adjectives = ["красивый", "удивительный", "стильный", "эффектный", "яркий", "атмосферный"]
+        if random.random() > 0.5:
+            adj = random.choice(adjectives)
+            prompts.append(f"{adj} {topic}, качественное фото")
+
+        # Случайно выбираем промпт
+        selected_prompt = random.choice(prompts)
+        logger.info(f"Selected prompt: {selected_prompt}")
+
+        return self.generate_image(selected_prompt)
 
     def generate_image_russian(self, topic):
-        """Генерирует изображение с русскоязычным промптом"""
-        prompts = [
-            f"фотореалистичное качественное изображение {topic}",
-            f"красивое реалистичное фото {topic}",
-            topic
-        ]
+        """Генерирует изображение с русскоязычным промптом и вариациями"""
+        return self.generate_image_variations(topic)
 
-        for prompt in prompts:
-            logger.info(f"Trying Russian prompt: {prompt}")
-            result = self.generate_image(prompt)
-            if result:
-                return result
-        return None
+    def generate_image_with_fallback(self, topic):
+        """Генерирует изображение с английским промптом"""
+        prompts = [
+            f"high quality photorealistic {topic}, detailed",
+            f"beautiful realistic {topic}, professional photography",
+            f"{topic}, high resolution, details",
+            f"amazing {topic} photography"
+        ]
+        selected_prompt = random.choice(prompts)
+        return self.generate_image(selected_prompt)
