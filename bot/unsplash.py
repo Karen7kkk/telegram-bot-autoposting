@@ -6,8 +6,22 @@ class UnsplashClient:
     def __init__(self):
         self.access_key = UNSPLASH_ACCESS_KEY
         self.base_url = "https://api.unsplash.com"
+        self._translator = None  # будет инициализирован при первом использовании
+
+    def _translate_text(self, text):
+        """Переводит английский текст на русский через GigaChat"""
+        if not text:
+            return ""
+        try:
+            from bot.gigachat import GigaChatClient
+            giga = GigaChatClient()
+            prompt = f"Переведи на русский язык (только перевод, без кавычек и пояснений): {text}"
+            return giga.generate_short_sentence(prompt)
+        except Exception:
+            return text  # если перевод не удался, оставляем английский
 
     def search_photo(self, query, orientation="landscape", per_page=5):
+        """Возвращает (url, description) или (None, None)"""
         if not self.access_key:
             return None, None
         url = f"{self.base_url}/search/photos"
@@ -25,9 +39,15 @@ class UnsplashClient:
                 if data["results"]:
                     idx = random.randint(0, len(data["results"]) - 1)
                     photo = data["results"][idx]
+                    # Берём alt_description или description
                     description = photo.get("alt_description") or photo.get("description") or ""
-                    if len(description.split()) > 15:
-                        description = " ".join(description.split()[:15])
+                    if description:
+                        # Ограничиваем длину до 15 слов перед переводом
+                        words = description.split()
+                        if len(words) > 15:
+                            description = " ".join(words[:15])
+                        # Переводим на русский
+                        description = self._translate_text(description)
                     return photo["urls"]["regular"], description
         except Exception:
             pass

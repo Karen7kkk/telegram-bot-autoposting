@@ -36,7 +36,7 @@ class GigaChatClient:
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json"
         }
-        prompt = f"Write a short Telegram post about {topic} in Russian. Use emojis. Friendly style. Length 300-500 chars."
+        prompt = f"Напиши короткий пост для Telegram канала на тему: {topic}. Используй эмодзи. Дружеский стиль. Объем: 300-500 символов."
         data = {
             "model": "GigaChat",
             "messages": [{"role": "user", "content": prompt}],
@@ -53,7 +53,7 @@ class GigaChatClient:
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json"
         }
-        prompt = f"Напиши одно короткое предложение (до 10 слов) на тему: {topic}. Без эмодзи. Только предложение."
+        prompt = f"Напиши одно короткое предложение (до 10 слов) на тему: {topic}. Без эмодзи. Только предложение на русском языке."
         data = {
             "model": "GigaChat",
             "messages": [{"role": "user", "content": prompt}],
