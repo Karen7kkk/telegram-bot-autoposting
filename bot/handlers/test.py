@@ -13,6 +13,7 @@ async def handle_message(message: Message):
     global scheduler
     text = message.text or ""
 
+    # Команда /start_autopost
     if text.startswith("/start_autopost"):
         args = text.split()
         if len(args) < 4:
@@ -24,10 +25,11 @@ async def handle_message(message: Message):
             interval = int(args[3])
             scheduler = PostScheduler(message.bot, channel_id, topic, interval, use_pollinations=True)
             scheduler.start()
-            await message.answer(f"✅ Автопостинг запущен!\nКанал: {channel_id}\nТема: {topic}\nИнтервал: {interval} часов\nГенерация: Pollinations.ai")
+            await message.answer(f"✅ Автопостинг запущен!\nКанал: {channel_id}\nТема: {topic}\nИнтервал: {interval} часов\nГенерация: Pollinations.ai + Unsplash")
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
 
+    # Команда /test_pollinations
     elif text.startswith("/test_pollinations"):
         topic = text.replace("/test_pollinations", "").strip()
         if not topic:
@@ -37,7 +39,6 @@ async def handle_message(message: Message):
         await message.answer("🎨 Генерирую изображение через Pollinations.ai... (30-60 секунд)")
 
         try:
-            from bot.pollinations import PollinationsClient
             pollinations = PollinationsClient()
             giga = GigaChatClient()
 
@@ -64,9 +65,10 @@ async def handle_message(message: Message):
             else:
                 await status_msg.edit_text("❌ Не удалось сгенерировать изображение. Попробуй другую тему или используй /test_photo")
 
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
+        except Exception as e:
+            await message.answer(f"❌ Ошибка: {e}")
 
+    # Команда /test_photo (Unsplash)
     elif text.startswith("/test_photo"):
         topic = text.replace("/test_photo", "").strip()
         if not topic:
@@ -99,5 +101,6 @@ async def handle_message(message: Message):
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
 
+    # Любое другое сообщение
     else:
         await message.answer(f"Получено: {text}")
