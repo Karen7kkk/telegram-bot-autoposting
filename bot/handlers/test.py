@@ -33,25 +33,39 @@ async def handle_message(message: Message):
         if not topic:
             await message.answer("Укажи тему: /test_pollinations футбольный матч")
             return
-        await message.answer("🎨 Генерирую изображение через Pollinations.ai... (10-20 секунд)")
+
+        await message.answer("🎨 Генерирую изображение через Pollinations.ai... (30-60 секунд)")
+
         try:
+            from bot.pollinations import PollinationsClient
             pollinations = PollinationsClient()
             giga = GigaChatClient()
 
+            status_msg = await message.answer("⏳ Пытаюсь сгенерировать изображение...")
+
+            # Пробуем русский промпт
             photo_bytes = pollinations.generate_image_russian(topic)
 
             if not photo_bytes:
-                await message.answer("❌ Не удалось сгенерировать изображение. Попробуй другую тему.")
-                return
+                await status_msg.edit_text("🔄 Пробую английский вариант...")
+                photo_bytes = pollinations.generate_image_with_fallback(topic)
 
-            caption = giga.generate_short_sentence(topic)
+            if not photo_bytes:
+                await status_msg.edit_text("🔄 Пробую простой запрос...")
+                photo_bytes = pollinations.generate_image(topic)
 
-            await message.answer_photo(
-                photo=BufferedInputFile(photo_bytes, filename="generated.jpg"),
-                caption=f"🎨 {caption}"
-            )
-        except Exception as e:
-            await message.answer(f"❌ Ошибка: {e}")
+            if photo_bytes:
+                caption = giga.generate_short_sentence(topic)
+                await message.answer_photo(
+                    photo=BufferedInputFile(photo_bytes, filename="generated.jpg"),
+                    caption=f"🎨 {caption}"
+                )
+                await status_msg.delete()
+            else:
+                await status_msg.edit_text("❌ Не удалось сгенерировать изображение. Попробуй другую тему или используй /test_photo")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
 
     elif text.startswith("/test_photo"):
         topic = text.replace("/test_photo", "").strip()
