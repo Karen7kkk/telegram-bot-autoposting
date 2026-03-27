@@ -1,6 +1,29 @@
-venv/ 
-__pycache__/ 
-*.pyc 
-.env 
-.vscode/ 
-*.log 
+# Никогда не коммитить секреты
+.env
+*.pem
+*.key
+
+# Базы данных
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Логи
+*.log
+logs/
