@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from bot.config import BOT_TOKEN
 from bot.handlers.test import router as test_router
 from bot.database import init_db
@@ -30,7 +31,8 @@ async def main():
     except Exception as e:
         logger.error(f"Scheduler start failed: {e}")
     
-    dp = Dispatcher()
+    # Диспетчер с хранилищем для FSM
+    dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(test_router)
     
     print("Bot is ready!")

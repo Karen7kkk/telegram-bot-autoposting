@@ -1,6 +1,8 @@
 import asyncio
 from aiogram import Router
-from aiogram.types import Message, BufferedInputFile
+from aiogram.types import Message, BufferedInputFile, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from bot.gigachat import GigaChatClient
 from bot.unsplash import UnsplashClient
 from bot.database import (
@@ -8,6 +10,7 @@ from bot.database import (
     update_post_status, get_posts_by_status, get_post,
     get_rubric_by_name
 )
+from bot.states import CreatePost
 from datetime import datetime
 
 # Pollinations опционально
@@ -21,8 +24,84 @@ except ImportError:
 router = Router()
 
 @router.message()
-async def handle_message(message: Message):
+async def handle_message(message: Message, state: FSMContext):
     text = message.text or ""
+
+    # ============ КОМАНДА /create_post (интерактивное создание) ============
+    if text.startswith("/create_post"):
+        await message.answer("Давайте создадим новый пост.\nВведите тему поста:")
+        await state.set_state(CreatePost.waiting_for_topic)
+        return
+
+    # Обработчик темы
+    current_state = await state.get_state()
+    if current_state == CreatePost.waiting_for_topic:
+        topic = text.strip()
+        if not topic:
+            await message.answer("Тема не может быть пустой. Попробуйте ещё раз:")
+            return
+        await state.update_data(topic=topic)
+
+        # Предлагаем рубрики
+        rubrics = get_rubrics()
+        if rubrics:
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=r["name"], callback_data=f"rubric_{r['id']}")] for r in rubrics
+            ] + [[InlineKeyboardButton(text="Без рубрики", callback_data="rubric_none")]]
+            )
+            await message.answer("Выберите рубрику:", reply_markup=keyboard)
+            await state.set_state(CreatePost.waiting_for_rubric)
+        else:
+            await state.update_data(rubric_id=None)
+            await message.answer("Рубрик пока нет. Пропускаем.\nТеперь укажите ID канала (число, например -1001234567890):")
+            await state.set_state(CreatePost.waiting_for_channel)
+        return
+
+    # Обработчик ввода канала
+    if current_state == CreatePost.waiting_for_channel:
+        try:
+            channel_id = int(text.strip())
+        except ValueError:
+            await message.answer("ID канала должен быть числом (например, -1001234567890). Попробуйте ещё раз:")
+            return
+        await state.update_data(channel_id=channel_id)
+
+        data = await state.get_data()
+        topic = data["topic"]
+        rubric_id = data.get("rubric_id")
+        channel_id = data["channel_id"]
+
+        # Показываем подтверждение
+        rubric_name = "без рубрики"
+        if rubric_id:
+            rubrics = get_rubrics()
+            rubric_name = next((r["name"] for r in rubrics if r["id"] == rubric_id), rubric_name)
+
+        confirm_text = f"📝 Пост:\nТема: {topic}\nРубрика: {rubric_name}\nКанал: {channel_id}\n\nВсё верно? (да/нет)"
+        await message.answer(confirm_text, reply_markup=ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="Да"), KeyboardButton(text="Нет")]],
+            resize_keyboard=True
+        ))
+        await state.set_state(CreatePost.waiting_for_confirm)
+        return
+
+    # Обработчик подтверждения
+    if current_state == CreatePost.waiting_for_confirm:
+        if text.lower() in ["да", "yes", "y", "да"]:
+            data = await state.get_data()
+            post_id = add_post(
+                topic=data["topic"],
+                rubric_id=data.get("rubric_id"),
+                channel_id=data.get("channel_id")
+            )
+            await message.answer(f"✅ Пост #{post_id} создан со статусом 'draft'.\n"
+                                 f"Теперь вы можете подтвердить его: /approve {post_id}\n"
+                                 f"Или запланировать: /schedule {post_id} <дата>", reply_markup=ReplyKeyboardRemove())
+            await state.clear()
+        else:
+            await message.answer("Создание отменено.", reply_markup=ReplyKeyboardRemove())
+            await state.clear()
+        return
 
     # ============ КОМАНДА /newpost ============
     if text.startswith("/newpost"):
@@ -42,18 +121,20 @@ async def handle_message(message: Message):
         post_id = add_post(topic=topic, rubric_id=rubric_id)
         await message.answer(f"✅ Пост #{post_id} создан со статусом 'draft'. Тема: {topic}\n"
                              f"Используйте /approve {post_id} для подтверждения или /schedule {post_id} <дата> для планирования.")
+        return
 
     # ============ КОМАНДА /drafts ============
-    elif text.startswith("/drafts"):
+    if text.startswith("/drafts"):
         posts = get_posts_by_status("draft")
         if not posts:
             await message.answer("Нет черновиков.")
             return
         lines = [f"📝 {p['id']}: {p['topic']} (создан {p['created_at']})" for p in posts]
         await message.answer("\n".join(lines), parse_mode="Markdown")
+        return
 
     # ============ КОМАНДА /approve ============
-    elif text.startswith("/approve"):
+    if text.startswith("/approve"):
         parts = text.split()
         if len(parts) < 2:
             await message.answer("Использование: /approve <post_id>")
@@ -72,9 +153,10 @@ async def handle_message(message: Message):
             return
         update_post_status(post_id, "approved")
         await message.answer(f"✅ Пост #{post_id} подтверждён. Теперь его можно запланировать: /schedule {post_id} <дата>")
+        return
 
     # ============ КОМАНДА /schedule ============
-    elif text.startswith("/schedule"):
+    if text.startswith("/schedule"):
         parts = text.split(maxsplit=2)
         if len(parts) < 3:
             await message.answer("Использование: /schedule <post_id> <дата и время в формате YYYY-MM-DD HH:MM>\nПример: /schedule 42 2025-04-01 15:00")
@@ -99,20 +181,22 @@ async def handle_message(message: Message):
             return
         update_post_status(post_id, "scheduled", scheduled_at)
         await message.answer(f"✅ Пост #{post_id} запланирован на {scheduled_at}")
+        return
 
     # ============ КОМАНДА /rubrics ============
-    elif text.startswith("/rubrics"):
+    if text.startswith("/rubrics"):
         rubrics = get_rubrics()
         if not rubrics:
             await message.answer("Нет созданных рубрик. Добавьте командой /add_rubric <название>")
             return
         lines = [f"📂 {r['name']}: {r['description'] or 'без описания'}" for r in rubrics]
         await message.answer("\n".join(lines), parse_mode="Markdown")
+        return
 
     # ============ КОМАНДА /add_rubric (админ) ============
-    elif text.startswith("/add_rubric"):
+    if text.startswith("/add_rubric"):
         # Замените на ваш Telegram ID (получить можно через @userinfobot)
-        YOUR_ADMIN_ID = 1543148458
+        YOUR_ADMIN_ID = 123456789
         if message.from_user.id != YOUR_ADMIN_ID:
             await message.answer("❌ У вас нет прав на создание рубрик.")
             return
@@ -126,18 +210,20 @@ async def handle_message(message: Message):
             name, desc = name.split(maxsplit=1)
         add_rubric(name, desc)
         await message.answer(f"✅ Рубрика '{name}' создана.")
+        return
 
     # ============ КОМАНДА /scheduled (список запланированных) ============
-    elif text.startswith("/scheduled"):
+    if text.startswith("/scheduled"):
         posts = get_posts_by_status("scheduled")
         if not posts:
             await message.answer("Нет запланированных постов.")
             return
         lines = [f"⏰ {p['id']}: {p['topic']} (запланирован {p['scheduled_at']})" for p in posts]
         await message.answer("\n".join(lines), parse_mode="Markdown")
+        return
 
     # ============ КОМАНДА /test_photo (Unsplash) ============
-    elif text.startswith("/test_photo"):
+    if text.startswith("/test_photo"):
         topic = text.replace("/test_photo", "").strip()
         if not topic:
             await message.answer("Укажи тему: /test_photo природа")
@@ -163,9 +249,10 @@ async def handle_message(message: Message):
             )
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
+        return
 
     # ============ КОМАНДА /test_pollinations ============
-    elif text.startswith("/test_pollinations") and POLLINATIONS_AVAILABLE:
+    if text.startswith("/test_pollinations") and POLLINATIONS_AVAILABLE:
         topic = text.replace("/test_pollinations", "").strip()
         if not topic:
             await message.answer("Укажи тему: /test_pollinations футбольный матч")
@@ -195,9 +282,10 @@ async def handle_message(message: Message):
                 )
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
+        return
 
     # ============ КОМАНДА /test_variations ============
-    elif text.startswith("/test_variations") and POLLINATIONS_AVAILABLE:
+    if text.startswith("/test_variations") and POLLINATIONS_AVAILABLE:
         topic = text.replace("/test_variations", "").strip()
         if not topic:
             await message.answer("Укажи тему: /test_variations природа")
@@ -221,11 +309,15 @@ async def handle_message(message: Message):
             await message.answer("✅ Генерация 3 вариантов завершена!")
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
+        return
 
     # ============ КОМАНДА /help ============
-    elif text.startswith("/help"):
+    if text.startswith("/help"):
         help_text = """
 📋 *Доступные команды бота:*
+
+🆕 *Создание поста:*
+• `/create_post` — интерактивное создание (тема, рубрика, канал)
 
 📝 *Управление постами:*
 • `/newpost <тема> [рубрика]` — создать черновик
@@ -249,10 +341,22 @@ async def handle_message(message: Message):
 *Примечание:* Все изображения сопровождаются подписями, сгенерированными GigaChat на русском языке.
         """
         await message.answer(help_text, parse_mode="Markdown")
+        return
 
     # ============ ЛЮБОЕ ДРУГОЕ СООБЩЕНИЕ ============
-    else:
-        await message.answer(
-            f"Получено: {text}\n\n"
-            f"Отправь /help для списка доступных команд."
-        )
+    await message.answer(
+        f"Получено: {text}\n\n"
+        f"Отправь /help для списка доступных команд."
+    )
+
+# ============ Обработчик callback-запросов для выбора рубрики ============
+@router.callback_query(lambda c: c.data.startswith("rubric_"))
+async def process_rubric_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    rubric_id = None
+    if callback.data != "rubric_none":
+        rubric_id = int(callback.data.split("_")[1])
+    await state.update_data(rubric_id=rubric_id)
+    await callback.message.edit_reply_markup()  # убираем кнопки
+    await callback.message.answer("Теперь укажите ID канала (число, например -1001234567890):")
+    await state.set_state(CreatePost.waiting_for_channel)
