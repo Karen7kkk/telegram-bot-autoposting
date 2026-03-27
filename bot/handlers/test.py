@@ -196,7 +196,7 @@ async def handle_message(message: Message, state: FSMContext):
     # ============ КОМАНДА /add_rubric (админ) ============
     if text.startswith("/add_rubric"):
         # Замените на ваш Telegram ID (получить можно через @userinfobot)
-        YOUR_ADMIN_ID = 123456789
+        YOUR_ADMIN_ID = 1543148458
         if message.from_user.id != YOUR_ADMIN_ID:
             await message.answer("❌ У вас нет прав на создание рубрик.")
             return
