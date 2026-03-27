@@ -24,7 +24,7 @@ def init_db():
                 description TEXT
             )
         """)
-        # Таблица постов
+        # Таблица постов (добавлено поле channel_id)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +37,7 @@ def init_db():
                 posted_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 utm_tags TEXT,
+                channel_id INTEGER,
                 FOREIGN KEY (rubric_id) REFERENCES rubrics(id)
             )
         """)
@@ -74,12 +75,12 @@ def get_rubric_by_name(name: str):
         return cur.fetchone()
 
 # ========== CRUD для постов ==========
-def add_post(topic: str, content: str = "", media_url: str = "", rubric_id: int = None, utm_tags: str = "") -> int:
+def add_post(topic: str, content: str = "", media_url: str = "", rubric_id: int = None, utm_tags: str = "", channel_id: int = None) -> int:
     with get_connection() as conn:
         cur = conn.execute(
-            """INSERT INTO posts (topic, content, media_url, rubric_id, utm_tags, status)
-               VALUES (?, ?, ?, ?, ?, 'draft')""",
-            (topic, content, media_url, rubric_id, utm_tags)
+            """INSERT INTO posts (topic, content, media_url, rubric_id, utm_tags, channel_id, status)
+               VALUES (?, ?, ?, ?, ?, ?, 'draft')""",
+            (topic, content, media_url, rubric_id, utm_tags, channel_id)
         )
         conn.commit()
         return cur.lastrowid
@@ -115,6 +116,10 @@ def update_post_status(post_id: int, status: str, scheduled_at: datetime = None)
         else:
             conn.execute("UPDATE posts SET status = ? WHERE id = ?", (status, post_id))
         conn.commit()
+        # Отладочный вывод
+        cur = conn.execute("SELECT status FROM posts WHERE id = ?", (post_id,))
+        row = cur.fetchone()
+        logger.debug(f"post {post_id} new status = {row['status'] if row else None}")
 
 def get_posts_by_status(status: str, limit: int = 50):
     with get_connection() as conn:
