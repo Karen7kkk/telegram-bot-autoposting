@@ -39,7 +39,7 @@ async def handle_message(message: Message):
                 channel_id, 
                 topic, 
                 interval, 
-                use_pollinations=False  # Пока используем Unsplash как основной
+                use_pollinations=False  # по умолчанию Unsplash
             )
             scheduler.start()
             await message.answer(
@@ -47,40 +47,41 @@ async def handle_message(message: Message):
                 f"Канал: {channel_id}\n"
                 f"Тема: {topic}\n"
                 f"Интервал: {interval} часов\n"
-                f"Источник: Unsplash (фото + русское описание)"
+                f"Источник: Unsplash"
             )
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
 
-    # ============ КОМАНДА /test_gigachat_image ============
-    elif text.startswith("/test_gigachat_image"):
-        topic = text.replace("/test_gigachat_image", "").strip()
+    # ============ КОМАНДА /test_photo (Unsplash) ============
+    elif text.startswith("/test_photo"):
+        topic = text.replace("/test_photo", "").strip()
         if not topic:
-            await message.answer("Укажи тему: /test_gigachat_image розовый кот в шляпе")
+            await message.answer("Укажи тему: /test_photo природа")
             return
-
-        await message.answer("🎨 Генерирую изображение через GigaChat... (20-40 секунд)")
-
+        await message.answer("🔍 Ищу фото в Unsplash...")
         try:
+            unsplash = UnsplashClient()
             giga = GigaChatClient()
 
-            status_msg = await message.answer("⏳ Генерация изображения...")
+            photo_url, description = unsplash.search_photo(topic)
 
-            photo_bytes = giga.generate_image_simple(topic)
-
-            if photo_bytes:
+            if not photo_url:
                 caption = giga.generate_short_sentence(topic)
-                await message.answer_photo(
-                    photo=BufferedInputFile(photo_bytes, filename="generated.jpg"),
-                    caption=f"🎨 GigaChat: {caption}"
-                )
-                await status_msg.delete()
-            else:
-                await status_msg.edit_text(
-                    "❌ Не удалось сгенерировать изображение. "
-                    "Попробуй другой промпт или используй /test_photo"
-                )
+                await message.answer(f"✨ {caption}", parse_mode="Markdown")
+                return
 
+            photo_bytes = unsplash.download_photo(photo_url)
+            if not photo_bytes:
+                caption = giga.generate_short_sentence(topic)
+                await message.answer(f"✨ {caption}", parse_mode="Markdown")
+                return
+
+            caption = description if description else giga.generate_short_sentence(topic)
+
+            await message.answer_photo(
+                photo=BufferedInputFile(photo_bytes, filename="photo.jpg"),
+                caption=f"📸 {caption}"
+            )
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
 
@@ -91,7 +92,7 @@ async def handle_message(message: Message):
             await message.answer("Укажи тему: /test_pollinations футбольный матч")
             return
 
-        await message.answer("🎨 Генерирую уникальное изображение через Pollinations... (30-60 секунд)")
+        await message.answer("🎨 Генерирую изображение через Pollinations... (30-60 секунд)")
 
         try:
             pollinations = PollinationsClient()
@@ -158,55 +159,18 @@ async def handle_message(message: Message):
         except Exception as e:
             await message.answer(f"❌ Ошибка: {e}")
 
-    # ============ КОМАНДА /test_photo ============
-    elif text.startswith("/test_photo"):
-        topic = text.replace("/test_photo", "").strip()
-        if not topic:
-            await message.answer("Укажи тему: /test_photo природа")
-            return
-
-        await message.answer("🔍 Ищу фото в Unsplash...")
-
-        try:
-            unsplash = UnsplashClient()
-            giga = GigaChatClient()
-
-            photo_url, description = unsplash.search_photo(topic)
-
-            if not photo_url:
-                caption = giga.generate_short_sentence(topic)
-                await message.answer(f"✨ {caption}", parse_mode="Markdown")
-                return
-
-            photo_bytes = unsplash.download_photo(photo_url)
-            if not photo_bytes:
-                caption = giga.generate_short_sentence(topic)
-                await message.answer(f"✨ {caption}", parse_mode="Markdown")
-                return
-
-            caption = description if description else giga.generate_short_sentence(topic)
-
-            await message.answer_photo(
-                photo=BufferedInputFile(photo_bytes, filename="photo.jpg"),
-                caption=f"📸 {caption}"
-            )
-
-        except Exception as e:
-            await message.answer(f"❌ Ошибка: {e}")
-
     # ============ КОМАНДА /help ============
     elif text.startswith("/help"):
         help_text = """
 📋 *Доступные команды бота:*
 
-🎨 *Генерация изображений:*
-• `/test_gigachat_image тема` — генерация через GigaChat
-• `/test_pollinations тема` — генерация через Pollinations (если включён)
-• `/test_variations тема` — 3 варианта через Pollinations
-• `/test_photo тема` — поиск готового фото в Unsplash
+🎨 *Генерация и поиск изображений:*
+• `/test_photo тема` — найти фото в Unsplash + русское описание
+• `/test_pollinations тема` — сгенерировать изображение через Pollinations (если включён)
+• `/test_variations тема` — сгенерировать 3 варианта через Pollinations
 
 🚀 *Автопостинг в канал:*
-• `/start_autopost ID_КАНАЛА ТЕМА ИНТЕРВАЛ` — запуск автопостинга
+• `/start_autopost ID_КАНАЛА ТЕМА ИНТЕРВАЛ` — запустить автопостинг
    Пример: `/start_autopost -1001234567890 природа 3`
 
 📖 *Справка:*

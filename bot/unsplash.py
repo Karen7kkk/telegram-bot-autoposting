@@ -11,23 +11,13 @@ class UnsplashClient:
         self.base_url = "https://api.unsplash.com"
 
     def _translate_text(self, text):
-        """Переводит английский текст на русский через GigaChat"""
-        if not text:
-            return ""
-        try:
-            from bot.gigachat import GigaChatClient
-            giga = GigaChatClient()
-            prompt = f"Переведи на русский язык (только перевод, без кавычек и пояснений): {text}"
-            return giga.generate_short_sentence(prompt)
-        except Exception as e:
-            logger.error(f"Translation error: {e}")
-            return text
+        from bot.gigachat import GigaChatClient
+        giga = GigaChatClient()
+        return giga.translate_text(text)
 
     def search_photo(self, query, orientation="landscape", per_page=5):
-        """Возвращает (url, description) или (None, None)"""
         if not self.access_key:
             return None, None
-
         url = f"{self.base_url}/search/photos"
         headers = {"Authorization": f"Client-ID {self.access_key}"}
         params = {
@@ -36,7 +26,6 @@ class UnsplashClient:
             "orientation": orientation,
             "page": random.randint(1, 10)
         }
-
         try:
             response = requests.get(url, headers=headers, params=params, timeout=10)
             if response.status_code == 200:
@@ -46,6 +35,7 @@ class UnsplashClient:
                     photo = data["results"][idx]
                     description = photo.get("alt_description") or photo.get("description") or ""
                     if description:
+                        # ограничиваем длину
                         words = description.split()
                         if len(words) > 15:
                             description = " ".join(words[:15])
@@ -53,7 +43,6 @@ class UnsplashClient:
                     return photo["urls"]["regular"], description
         except Exception as e:
             logger.error(f"Unsplash search error: {e}")
-
         return None, None
 
     def download_photo(self, url):
@@ -61,6 +50,6 @@ class UnsplashClient:
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 return response.content
-        except Exception as e:
-            logger.error(f"Unsplash download error: {e}")
+        except Exception:
+            pass
         return None
